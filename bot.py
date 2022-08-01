@@ -1,6 +1,9 @@
 from aiogram import Dispatcher, Bot, types
 from aiogram.utils.executor import start_webhook
 
+from parser import get_books_list, get_book
+from db import BotDB
+
 import logging
 import os
 
@@ -17,7 +20,7 @@ WEBAPP_HOST = '0.0.0.0'
 WEBAPP_PORT = os.getenv('PORT', default=5000)
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
-# botDB = BotDB(os.environ.get('DB_URI'))
+botDB = BotDB(os.environ.get('DB_URI'))
 
 
 async def on_startup(dispatcher):
@@ -27,10 +30,27 @@ async def on_startup(dispatcher):
 async def on_shutdown(dispatcher):
     await bot.delete_webhook()
 
+
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
+    user_id = message.from_user.id
+    if not botDB.user_exists(user_id):
+        botDB.add_user(user_id)
     await message.answer(f'Привет, {message.from_user.first_name}')
+    await message.answer('Напиши название книги или имя автора :)')
 
+
+@dp.message_handler()
+async def search_book(message: types.Message):
+    books = await get_books_list(message.text.strip().lower())
+    if books:
+        keyboard = types.InlineKeyboardMarkup()
+        buttons = [types.InlineKeyboardButton(text=f"{book['title']} - {book['author']}", callback_data=book['id'])
+                   for book in books]
+        keyboard.add(*buttons)
+        await message.answer(f"По запросу «{message.text.strip()}» найдено:", reply_markup=keyboard)
+    else:
+        await message.answer('По вашему запросу ничего не найдено:c')
 
 if __name__ == '__main__':
     start_webhook(

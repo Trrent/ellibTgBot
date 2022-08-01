@@ -1,0 +1,111 @@
+from bs4 import BeautifulSoup
+import aiohttp
+import asyncio
+
+base_url = 'http://flibusta.is/'
+search_url = 'http://flibusta.is/booksearch'
+book_url = 'http://flibusta.is/b/'
+headers = {
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.160 YaBrowser/22.5.1.985 Yowser/2.5 Safari/537.36'}
+
+
+async def get_books_list(query: str):
+    params = {'ask': query}
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(url=search_url, headers=headers, params=params)
+        soup = BeautifulSoup(await response.text(), 'lxml')
+        books = []
+        chapters = soup.find('div', class_='clear-block', id='main').find_all('h3')
+        results = soup.find('div', class_='clear-block', id='main').find_all('ul')
+        result = None
+        for i in range(len(chapters)):
+            if 'Найденные книги' in chapters[i].text:
+                result = results[i]
+                break
+        if not result:
+            await session.close()
+            return
+        for item in result.find_all('li'):
+            book_frame, *authors = item.find_all('a')
+            book_id = book_frame['href'].split('/')[2]
+            book_title = book_frame.text.strip()
+            if len(authors) > 1:
+                author = ', '.join([i.text.strip() for i in authors])
+            else:
+                author = authors[0].text.strip()
+            books.append({'id': book_id, 'title': book_title, 'author': author})
+    return books
+
+
+async def get_book(book_id):
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(book_url + book_id, headers=headers)
+        soup = BeautifulSoup(await response.text(), 'lxml')
+        book_title = soup.find('h1', class_='title').text.strip()
+        book_rating = soup.find('div', id='newann')
+        if book_rating:
+            book_rating = book_rating.text.strip()
+        if soup.find('img', title='Cover image'):
+            img = base_url[:-1] + soup.find('img', title='Cover image')['src']
+        else:
+            img = None
+        genre = soup.find('p', class_='genre').text.strip()
+
+        description = soup.find('div', id='main').text.strip().split('Аннотация')[1].split('Рекомендации:')[0].strip()
+        if not description:
+            description = None
+
+        download_links = []
+        urls = soup.find_all('a')
+        for url in urls:
+            for extension in ['fb2', 'epub', 'mobi']:
+                if extension in url['href'] and url['href'].startswith('/b'):
+                    response = await session.get(base_url[:-1] + url['href'], allow_redirects=True, headers=headers)
+                    link = f"{response.real_url.scheme}://{response.real_url.authority}{response.real_url.path}"
+                    download_links.append((extension, link))
+    return {'id': book_id, 'title': book_title, 'description': description, 'links': download_links,
+            'rating': book_rating, 'img': img, 'genre': genre}
+
+    # if description:
+    #     description = description.text.strip()
+    #     book_id['description'] = description
+    # category = soup.find('div', class_='property_categories')
+    # if category:
+    #     category = category.find('div', class_='property_value').text.strip()
+    #     book_id['category'] = category
+    # year = soup.find('div', class_='property_year')
+    # if year:
+    #     year = year.find('div', class_='property_value').text.strip()
+    #     book_id['year'] = year
+    # language = soup.find('div', class_='property_language')
+    # if language:
+    #     language = language.find('div', class_='property_value').text.strip()
+    #     book_id['language'] = language
+    # key = soup.find('a', class_='dlButton')['href'].split('/')[-1]
+    # book_id['book_rating'] = book_rating
+    # book_id['file_quality'] = file_quality
+    # book_id['key'] = key
+    # return book_id
+
+
+# def get_download_url(self, book):
+#     response = self.session.get(download_url + book['id'] + '/' + book['key'], headers=headers)
+#     soup = BeautifulSoup(response.content, 'lxml')
+#     print(soup.find('article', class_='download-limits-error__message'))
+#     print(response.content)
+
+
+if __name__ == '__main__':
+    # lib.get_books_list('harry potter')
+    print(asyncio.run(get_books_list('Священная ложь')), sep='\n')
+    print(asyncio.run(get_book('620688')))
+    # lib.get_download_url({'id': '3343892', 'name': 'Harry Potter: The Complete Collection', 'author': 'J.K. Rowling',
+    #                       'publisher': 'Pottermore Publishing', 'key': 'e39c34', 'description': "All seven",
+    #                       'category': 'Science Fiction & Fantasy - Fantasy Fiction', 'year': '2015',
+    #                       'language': 'english', 'book_rating': '5.0', 'file_quality': '5.0'})
+    # url = 'http://static.flibusta.is:443/b.fb2/Ouks_Svyashchennaya-lozh.rJaPlg.620688.fb2.zip'
+    # filename = url.split('/')[-1]
+    # print(filename)
+    # response = requests.get(url, allow_redirects=True, headers=headers)
+    # open(filename, 'wb').write(response.content)
+    # print(response.content)
