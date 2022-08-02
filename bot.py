@@ -1,3 +1,4 @@
+import pyshorteners
 from aiogram import Dispatcher, Bot, types
 from aiogram.utils.executor import start_webhook
 
@@ -60,16 +61,16 @@ async def send_book_info(call: types.CallbackQuery):
     book_id = call.data.split('_')[1]
     book = await get_book_info(book_id)
     keyboard = types.InlineKeyboardMarkup()
-    buttons = [types.InlineKeyboardButton(text=item[0], url=item[1])
+    buttons = [types.InlineKeyboardButton(text=item[0], callback_data=pyshorteners.Shortener().tinyurl.short(item[1]))
                for item in book['links']]
     keyboard.add(*buttons)
     await bot.send_photo(chat_id=call.from_user.id,
                          photo=book['img'],
                          caption=f"Название: {book['title']}\n"
                                  f"Автор: {book['author']}\n"
+                                 f"Жанр: {book['genre']}\n"
                                  f"Описание: {book['description']}\n"
-                                 f"{book['genre']}\n"
-                                 f"{book['rating']}",
+                                 f"Рейтинг: {book['rating']}",
                          reply_markup=keyboard)
 
 

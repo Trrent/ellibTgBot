@@ -52,7 +52,8 @@ async def get_book_info(book_id):
             img = None
         genre = soup.find('p', class_='genre').text.strip()
 
-        description = soup.find('div', id='main').text.strip().split('Аннотация')[1].split('Рекомендации:')[0].strip()
+        description = ' '.join(
+            map(lambda x: x.strip(), soup.find('img', title='Cover image').find_next('p').text.split('\n')))
         if not description:
             description = None
 
