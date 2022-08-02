@@ -1,7 +1,7 @@
 from aiogram import Dispatcher, Bot, types
 from aiogram.utils.executor import start_webhook
 
-from parser import get_books_list, get_book
+from parser import get_books_list, get_book, get_book_info
 from db import BotDB
 
 import logging
@@ -28,6 +28,7 @@ async def on_startup(dispatcher):
 
 
 async def on_shutdown(dispatcher):
+    BotDB.close()
     await bot.delete_webhook()
 
 
@@ -44,13 +45,41 @@ async def start(message: types.Message):
 async def search_book(message: types.Message):
     books = await get_books_list(message.text.strip().lower())
     if books:
-        keyboard = types.InlineKeyboardMarkup()
-        buttons = [types.InlineKeyboardButton(text=f"{book['title']} - {book['author']}", callback_data=book['id'])
-                   for book in books]
+        keyboard = types.InlineKeyboardMarkup(row_width=1)
+        buttons = [
+            types.InlineKeyboardButton(text=f"{book['title']} - {book['author']}", callback_data=f"book_{book['id']}")
+            for book in books]
         keyboard.add(*buttons)
         await message.answer(f"По запросу «{message.text.strip()}» найдено:", reply_markup=keyboard)
     else:
         await message.answer('По вашему запросу ничего не найдено:c')
+
+
+@dp.callback_query_handler(lambda x: x.data and x.data.startswith('book_'))
+async def send_book_info(call: types.CallbackQuery):
+    book_id = call.data.split('_')[1]
+    book = await get_book_info(book_id)
+    keyboard = types.InlineKeyboardMarkup()
+    buttons = [types.InlineKeyboardButton(text=item[0], url=item[1])
+               for item in book['links']]
+    keyboard.add(*buttons)
+    await bot.send_photo(chat_id=call.from_user.id,
+                         photo=book['img'],
+                         caption=f"Название: {book['title']}\n"
+                                 f"Автор: {book['author']}\n"
+                                 f"Описание: {book['description']}\n"
+                                 f"{book['genre']}\n"
+                                 f"{book['rating']}",
+                         reply_markup=keyboard)
+
+
+@dp.callback_query_handler(lambda x: x.data.startswith('http'))
+async def get_file(call: types.CallbackQuery):
+    filename = await get_book(call.data)
+    await bot.send_document(call.from_user.id,
+                            document=open(filename, 'rb'))
+    os.remove(filename)
+
 
 if __name__ == '__main__':
     start_webhook(

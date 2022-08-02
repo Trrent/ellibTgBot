@@ -1,6 +1,6 @@
+import aiofiles
 from bs4 import BeautifulSoup
 import aiohttp
-import asyncio
 
 base_url = 'http://flibusta.is/'
 search_url = 'http://flibusta.is/booksearch'
@@ -37,11 +37,12 @@ async def get_books_list(query: str):
     return books
 
 
-async def get_book(book_id):
+async def get_book_info(book_id):
     async with aiohttp.ClientSession() as session:
         response = await session.get(book_url + book_id, headers=headers)
         soup = BeautifulSoup(await response.text(), 'lxml')
         book_title = soup.find('h1', class_='title').text.strip()
+        author = soup.find('h1', class_='title').find_next('a').text.strip()
         book_rating = soup.find('div', id='newann')
         if book_rating:
             book_rating = book_rating.text.strip()
@@ -61,51 +62,17 @@ async def get_book(book_id):
             for extension in ['fb2', 'epub', 'mobi']:
                 if extension in url['href'] and url['href'].startswith('/b'):
                     response = await session.get(base_url[:-1] + url['href'], allow_redirects=True, headers=headers)
-                    link = f"{response.real_url.scheme}://{response.real_url.authority}{response.real_url.path}"
+                    link = f"{response.real_url.scheme}://{response.real_url.authority}{response.real_url.path_qs}"
                     download_links.append((extension, link))
-    return {'id': book_id, 'title': book_title, 'description': description, 'links': download_links,
+
+    return {'id': book_id, 'title': book_title, 'author': author, 'description': description, 'links': download_links,
             'rating': book_rating, 'img': img, 'genre': genre}
 
-    # if description:
-    #     description = description.text.strip()
-    #     book_id['description'] = description
-    # category = soup.find('div', class_='property_categories')
-    # if category:
-    #     category = category.find('div', class_='property_value').text.strip()
-    #     book_id['category'] = category
-    # year = soup.find('div', class_='property_year')
-    # if year:
-    #     year = year.find('div', class_='property_value').text.strip()
-    #     book_id['year'] = year
-    # language = soup.find('div', class_='property_language')
-    # if language:
-    #     language = language.find('div', class_='property_value').text.strip()
-    #     book_id['language'] = language
-    # key = soup.find('a', class_='dlButton')['href'].split('/')[-1]
-    # book_id['book_rating'] = book_rating
-    # book_id['file_quality'] = file_quality
-    # book_id['key'] = key
-    # return book_id
 
-
-# def get_download_url(self, book):
-#     response = self.session.get(download_url + book['id'] + '/' + book['key'], headers=headers)
-#     soup = BeautifulSoup(response.content, 'lxml')
-#     print(soup.find('article', class_='download-limits-error__message'))
-#     print(response.content)
-
-
-if __name__ == '__main__':
-    # lib.get_books_list('harry potter')
-    print(asyncio.run(get_books_list('Священная ложь')), sep='\n')
-    print(asyncio.run(get_book('620688')))
-    # lib.get_download_url({'id': '3343892', 'name': 'Harry Potter: The Complete Collection', 'author': 'J.K. Rowling',
-    #                       'publisher': 'Pottermore Publishing', 'key': 'e39c34', 'description': "All seven",
-    #                       'category': 'Science Fiction & Fantasy - Fantasy Fiction', 'year': '2015',
-    #                       'language': 'english', 'book_rating': '5.0', 'file_quality': '5.0'})
-    # url = 'http://static.flibusta.is:443/b.fb2/Ouks_Svyashchennaya-lozh.rJaPlg.620688.fb2.zip'
-    # filename = url.split('/')[-1]
-    # print(filename)
-    # response = requests.get(url, allow_redirects=True, headers=headers)
-    # open(filename, 'wb').write(response.content)
-    # print(response.content)
+async def get_book(url):
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(url, allow_redirects=True, headers=headers)
+        filename = response.content_disposition.filename.replace('.zip', '')
+        async with aiofiles.open(filename, 'wb') as f:
+            await f.write(await response.content.read())
+    return filename
