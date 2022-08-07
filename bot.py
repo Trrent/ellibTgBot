@@ -29,7 +29,6 @@ async def on_startup(dispatcher):
 
 
 async def on_shutdown(dispatcher):
-    BotDB.close()
     await bot.delete_webhook()
 
 
@@ -46,12 +45,13 @@ async def start(message: types.Message):
 async def search_book(message: types.Message):
     books = await get_books_list(message.text.strip().lower())
     if books:
-        keyboard = types.InlineKeyboardMarkup(row_width=1)
-        buttons = [
-            types.InlineKeyboardButton(text=f"{book['title']} - {book['author']}", callback_data=f"book_{book['id']}")
-            for book in books]
-        keyboard.add(*buttons)
-        await message.answer(f"По запросу «{message.text.strip()}» найдено:", reply_markup=keyboard)
+        keyboard = types.InlineKeyboardMarkup(row_width=3)
+        result = []
+        for i, book in enumerate(books, 1):
+            result.append(f"{book['title']} - {book['author']}")
+            keyboard.add(types.InlineKeyboardButton(text=str(i), callback_data=f"book_{book['id']}"))
+        result = '\n'.join(result)
+        await message.answer(f"По запросу «{message.text.strip()}» найдено:\n\n{result}", reply_markup=keyboard)
     else:
         await message.answer('По вашему запросу ничего не найдено:c')
 

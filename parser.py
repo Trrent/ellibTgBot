@@ -2,9 +2,9 @@ import aiofiles
 from bs4 import BeautifulSoup
 import aiohttp
 
-base_url = 'http://flibusta.is/'
-search_url = 'http://flibusta.is/booksearch'
-book_url = 'http://flibusta.is/b/'
+base_url = 'https://www.flibusta.site/'
+search_url = 'https://www.flibusta.site/booksearch'
+book_url = 'https://www.flibusta.site/b/'
 headers = {
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.160 YaBrowser/22.5.1.985 Yowser/2.5 Safari/537.36'}
 
